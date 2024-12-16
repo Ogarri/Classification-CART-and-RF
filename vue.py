@@ -1,61 +1,75 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
-import pandas as pd
-from randomForest import RandomForest
-from CART import CART
+from tkinter import ttk, filedialog
+from randomForest import construire_foret_aleatoire, predire_foret, charger_donnees_depuis_csv
+from CART import construire_arbre_cart, afficher_arbre, charger_donnees_depuis_csv, predire_arbre
 
 class Application(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Algorithmes de Machine Learning")
+        self.title("Prédiction de Prêt")
         self.geometry("600x400")
 
-        self.label = tk.Label(self, text="Choisissez un fichier CSV:")
-        self.label.pack(pady=10)
+        self.create_widgets()
 
-        self.button = tk.Button(self, text="Parcourir", command=self.load_file)
-        self.button.pack(pady=10)
+    def create_widgets(self):
+        # Labels et entrées pour les caractéristiques
+        tk.Label(self, text="Revenu (€)").grid(row=0, column=0, padx=10, pady=10)
+        self.revenu_entry = tk.Entry(self)
+        self.revenu_entry.grid(row=0, column=1, padx=10, pady=10)
 
-        self.algorithm_var = tk.StringVar(value="RandomForest")
-        self.radio_rf = tk.Radiobutton(self, text="RandomForest", variable=self.algorithm_var, value="RandomForest")
-        self.radio_rf.pack(pady=5)
-        self.radio_cart = tk.Radiobutton(self, text="CART", variable=self.algorithm_var, value="CART")
-        self.radio_cart.pack(pady=5)
+        tk.Label(self, text="Montant du prêt (€)").grid(row=1, column=0, padx=10, pady=10)
+        self.montant_pret_entry = tk.Entry(self)
+        self.montant_pret_entry.grid(row=1, column=1, padx=10, pady=10)
 
-        self.run_button = tk.Button(self, text="Exécuter", command=self.run_algorithm)
-        self.run_button.pack(pady=20)
+        tk.Label(self, text="Durée de l'emploi (années)").grid(row=2, column=0, padx=10, pady=10)
+        self.duree_emploi_entry = tk.Entry(self)
+        self.duree_emploi_entry.grid(row=2, column=1, padx=10, pady=10)
 
-        self.result_label = tk.Label(self, text="")
-        self.result_label.pack(pady=10)
+        tk.Label(self, text="Historique de crédit").grid(row=3, column=0, padx=10, pady=10)
+        self.historique_credit_combobox = ttk.Combobox(self, values=["Bon", "Mauvais"])
+        self.historique_credit_combobox.grid(row=3, column=1, padx=10, pady=10)
 
-        self.data = None
+        # Boutons pour prédire avec CART et Random Forest
+        tk.Button(self, text="Prédire avec CART", command=self.predire_cart).grid(row=4, column=0, padx=10, pady=10)
+        tk.Button(self, text="Prédire avec Random Forest", command=self.predire_random_forest).grid(row=4, column=1, padx=10, pady=10)
 
-    def load_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
-        if file_path:
-            self.data = pd.read_csv(file_path)
-            messagebox.showinfo("Info", "Fichier chargé avec succès!")
+        # Bouton pour charger le fichier CSV
+        tk.Button(self, text="Charger fichier CSV", command=self.charger_fichier).grid(row=4, column=2, padx=10, pady=10)
 
-    def run_algorithm(self):
-        if self.data is None:
-            messagebox.showerror("Erreur", "Veuillez charger un fichier CSV d'abord.")
-            return
+        # Zone de texte pour afficher les résultats
+        self.result_text = tk.Text(self, height=10, width=50)
+        self.result_text.grid(row=5, column=0, columnspan=3, padx=10, pady=10)
 
-        algorithm = self.algorithm_var.get()
-        if algorithm == "RandomForest":
-            model = RandomForest(self.data, n_trees=10, n_features=self.data.shape[1] - 1)
-            model.set_features(self.data.columns.tolist())
-            model.fit()
-            score = model.score(self.data)
-        elif algorithm == "CART":
-            model = CART(self.data)
-            target = self.data.columns[-1]
-            categorical = [col for col in self.data.columns if self.data[col].dtype == 'object']
-            numerical = [col for col in self.data.columns if self.data[col].dtype != 'object']
-            model.fit(target, categorical, numerical)
-            model.predict(self.data)
-            score = model.evaluate()
+    def predire_cart(self):
+        echantillon = self.get_echantillon()
+        chemin_fichier_csv = '/c:/Users/bamor/Desktop/SAE Algo 3/(explosion du CPU).csv'
+        donnees = charger_donnees_depuis_csv(chemin_fichier_csv)
+        arbre_cart = construire_arbre_cart(donnees)
+        resultat = predire_arbre(arbre_cart, echantillon)
+        self.result_text.insert(tk.END, f"Prédiction avec CART : {resultat}\n")
 
-        self.result_label.config(text=f"Score: {score:.2f}")
-        messagebox.showinfo("Résultat", f"Score: {score:.2f}")
+    def predire_random_forest(self):
+        echantillon = self.get_echantillon()
+        chemin_fichier_csv = '/c:/Users/bamor/Desktop/SAE Algo 3/(explosion du CPU).csv'
+        donnees = charger_donnees_depuis_csv(chemin_fichier_csv)
+        foret_aleatoire = construire_foret_aleatoire(donnees, n_arbres=5, n_caracteristiques=2)
+        resultat = predire_foret(foret_aleatoire, echantillon)
+        self.result_text.insert(tk.END, f"Prédiction avec Random Forest : {resultat}\n")
 
+    def get_echantillon(self):
+        return {
+            'revenu': int(self.revenu_entry.get()),
+            'montant_pret': int(self.montant_pret_entry.get()),
+            'duree_emploi': int(self.duree_emploi_entry.get()),
+            'historique_credit': self.historique_credit_combobox.get()
+        }
+
+    def charger_fichier(self):
+        chemin_fichier = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
+        if chemin_fichier:
+            donnees = charger_donnees_depuis_csv(chemin_fichier)
+            arbre_cart = construire_arbre_cart(donnees)
+            afficher_arbre(arbre_cart)
+            echantillon = self.get_echantillon()
+            resultat = predire_arbre(arbre_cart, echantillon)
+            self.result_text.insert(tk.END, f"Prédiction pour l'exemple : {resultat}\n")
