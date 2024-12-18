@@ -140,9 +140,9 @@ def lancer_interface():
 
         try:
             # Preparer les donnees
-            X = donnees[["Revenu (€)", "Montant du Prêt (€)", "Duree de l'Emploi (annees)"]].values
-            X = np.column_stack((X, donnees["Historique de Credit"].map({"Bon": 1, "Mauvais": 0}).values))
-            y = donnees["Prêt Approuve"].map({"Oui": 1, "Non": 0}).values
+            X = donnees[["Revenu (€)", "Montant du Prêt (€)", "Durée de l'Emploi (années)"]].values
+            X = np.column_stack((X, donnees["Historique de Crédit"].map({"Bon": 1, "Mauvais": 0}).values))
+            y = donnees["Prêt Approuvé"].map({"Oui": 1, "Non": 0}).values
             
             if algorithme == "CART":
                 global modele_cart
@@ -212,15 +212,15 @@ def lancer_interface():
     entry_montant = tk.Entry(cadre_entree)
     entry_montant.grid(row=1, column=1)
 
-    tk.Label(cadre_entree, text="Duree de l'Emploi (annees):").grid(row=2, column=0)
+    tk.Label(cadre_entree, text="Durée de l'Emploi (annees):").grid(row=2, column=0)
     entry_duree = tk.Entry(cadre_entree)
     entry_duree.grid(row=2, column=1)
 
-    tk.Label(cadre_entree, text="Historique de Credit:").grid(row=3, column=0)
+    tk.Label(cadre_entree, text="Historique de Crédit:").grid(row=3, column=0)
     var_historique = tk.StringVar(value="Bon")
     tk.OptionMenu(cadre_entree, var_historique, "Bon", "Mauvais").grid(row=3, column=1)
 
-    btn_predire = tk.Button(racine, text="Predire", command=predire_classe)
+    btn_predire = tk.Button(racine, text="Prédire", command=predire_classe)
     btn_predire.pack(pady=10)
 
     racine.mainloop()
