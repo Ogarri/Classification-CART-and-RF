@@ -89,7 +89,7 @@ class CART:
             else:
                 return noeud["droite"]
 
-class ForêtAleatoire:
+class RandomForest:
     def __init__(self, n_arbres=10, profondeur_max=None, taille_echantillon=None):
         self.n_arbres = n_arbres
         self.profondeur_max = profondeur_max
@@ -118,18 +118,41 @@ class ForêtAleatoire:
     def _vote_majoritaire(self, predictions):
         return max(set(predictions), key=list(predictions).count)
 
+    def compter_branches(self):
+        return [self._compter_branches_arbre(arbre.arbre) for arbre in self.arbres]
+
+    def _compter_branches_arbre(self, noeud):
+        if isinstance(noeud, dict):
+            return 1 + self._compter_branches_arbre(noeud["gauche"]) + self._compter_branches_arbre(noeud["droite"])
+        else:
+            return 0
+
 # Initialisation de l'interface
 def lancer_interface():
     racine = tk.Tk()
-    racine.title("Classification: CART et Forêt Aleatoire")
+    racine.title("Classification: CART et Random Forest")
     
     def charger_fichier():
         chemin_fichier = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
         if chemin_fichier:
             try:
-                global donnees, modele
+                global donnees, colonnes, cible, entries
                 donnees = pd.read_csv(chemin_fichier)
+                colonnes = list(donnees.columns)
+                if len(colonnes) < 2:
+                    raise ValueError("Le fichier CSV doit contenir au moins deux colonnes.")
+                cible = colonnes[-1]  # Dernière colonne comme cible par défaut
                 messagebox.showinfo("Succes", "Fichier charge avec succes !")
+                
+                # Mise à jour des entrées pour la prédiction
+                for widget in cadre_entree.winfo_children():
+                    widget.destroy()
+                entries = []
+                for i, col in enumerate(colonnes[:-1]):
+                    tk.Label(cadre_entree, text=f"{col}:").grid(row=i, column=0)
+                    entry = tk.Entry(cadre_entree)
+                    entry.grid(row=i, column=1)
+                    entries.append(entry)
             except Exception as e:
                 messagebox.showerror("Erreur", f"Impossible de charger le fichier : {str(e)}")
 
@@ -140,9 +163,8 @@ def lancer_interface():
 
         try:
             # Preparer les donnees
-            X = donnees[["Revenu (€)", "Montant du Prêt (€)", "Durée de l'Emploi (années)"]].values
-            X = np.column_stack((X, donnees["Historique de Crédit"].map({"Bon": 1, "Mauvais": 0}).values))
-            y = donnees["Prêt Approuvé"].map({"Oui": 1, "Non": 0}).values
+            X = donnees.drop(columns=[cible]).values
+            y = donnees[cible].values
             
             if algorithme == "CART":
                 global modele_cart
@@ -151,12 +173,14 @@ def lancer_interface():
                 precision = calculer_precision(modele_cart, X, y)
                 lbl_precision.config(text=f"Taux de precision CART: {precision:.2f}")
                 messagebox.showinfo("Succes", f"Modele {algorithme} entraîne avec succes ! Taux de precision: {precision:.2f}")
-            elif algorithme == "Forêt Aleatoire":
+            elif algorithme == "Random Forest":
                 global modele_fa
-                modele_fa = ForêtAleatoire(n_arbres=10, profondeur_max=5)
+                modele_fa = RandomForest(n_arbres=10, profondeur_max=5)
                 modele_fa.ajuster(X, y)
                 precision = calculer_precision(modele_fa, X, y)
-                lbl_precision.config(text=f"Taux de precision Forêt Aleatoire: {precision:.2f}")
+                lbl_precision.config(text=f"Taux de precision Random Forest: {precision:.2f}")
+                nombre_branches = modele_fa.compter_branches()
+                lbl_branches.config(text=f"Nombre de branches par arbre: {nombre_branches}")
                 messagebox.showinfo("Succes", f"Modele {algorithme} entraîne avec succes ! Taux de precision: {precision:.2f}")
         except Exception as e:
             messagebox.showerror("Erreur", f"Probleme lors de l'entraînement : {str(e)}")
@@ -172,18 +196,16 @@ def lancer_interface():
                 messagebox.showerror("Erreur", "Veuillez entraîner un modele d'abord.")
                 return
             
-            revenu = float(entry_revenu.get())
-            montant = float(entry_montant.get())
-            duree = int(entry_duree.get())
-            historique = 1 if var_historique.get() == "Bon" else 0
-
-            donnees_entree = [[revenu, montant, duree, historique]]
+            donnees_entree = [entry.get() for entry in entries]
+            if len(donnees_entree) != len(colonnes) - 1:
+                raise ValueError("Le nombre de valeurs d'entrée ne correspond pas au nombre de colonnes.")
+            donnees_entree = [donnees_entree]
             if modele_cart:
                 prediction = modele_cart.predire(donnees_entree)[0]
             elif modele_fa:
                 prediction = modele_fa.predire(donnees_entree)[0]
             
-            resultat = "Oui" if prediction == 1 else "Non"
+            resultat = prediction
             messagebox.showinfo("Resultat", f"Prediction : {resultat}")
         except Exception as e:
             messagebox.showerror("Erreur", f"Probleme lors de la prediction : {str(e)}")
@@ -195,30 +217,19 @@ def lancer_interface():
     btn_cart = tk.Button(racine, text="Entraîner CART", command=lambda: entraîner_modele("CART"))
     btn_cart.pack(pady=5)
 
-    btn_fa = tk.Button(racine, text="Entraîner Forêt Aleatoire", command=lambda: entraîner_modele("Forêt Aleatoire"))
+    btn_fa = tk.Button(racine, text="Entraîner Random Forest", command=lambda: entraîner_modele("Random Forest"))
     btn_fa.pack(pady=5)
 
     lbl_precision = tk.Label(racine, text="Taux de precision: N/A")
     lbl_precision.pack(pady=5)
 
+    lbl_branches = tk.Label(racine, text="Nombre de branches par arbre: N/A")
+    lbl_branches.pack(pady=5)
+
     cadre_entree = tk.LabelFrame(racine, text="Exemple de prediction")
     cadre_entree.pack(pady=10, padx=10)
 
-    tk.Label(cadre_entree, text="Revenu (€):").grid(row=0, column=0)
-    entry_revenu = tk.Entry(cadre_entree)
-    entry_revenu.grid(row=0, column=1)
-
-    tk.Label(cadre_entree, text="Montant du Prêt (€):").grid(row=1, column=0)
-    entry_montant = tk.Entry(cadre_entree)
-    entry_montant.grid(row=1, column=1)
-
-    tk.Label(cadre_entree, text="Durée de l'Emploi (annees):").grid(row=2, column=0)
-    entry_duree = tk.Entry(cadre_entree)
-    entry_duree.grid(row=2, column=1)
-
-    tk.Label(cadre_entree, text="Historique de Crédit:").grid(row=3, column=0)
-    var_historique = tk.StringVar(value="Bon")
-    tk.OptionMenu(cadre_entree, var_historique, "Bon", "Mauvais").grid(row=3, column=1)
+    entries = []
 
     btn_predire = tk.Button(racine, text="Prédire", command=predire_classe)
     btn_predire.pack(pady=10)
@@ -227,6 +238,8 @@ def lancer_interface():
 
 if __name__ == "__main__":
     donnees = None
+    colonnes = []
+    cible = None
     modele_cart = None
     modele_fa = None
     lancer_interface()
